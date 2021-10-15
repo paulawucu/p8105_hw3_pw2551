@@ -9,3 +9,58 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Import the library:
+```{r, message=FALSE}
+library(tidyverse)
+library(viridis)
+```
+
+### Problem 1
+Load in dataset
+```{r}
+library(p8105.datasets)
+data("instacart")
+```
+```{r}
+# it would be easier to store this as a new variable
+aisle = 
+  instacart %>% 
+  group_by(aisle_id) %>% 
+  summarize(n_obs = n()) %>% 
+  arrange(desc(n_obs))  # arrange in descending order
+knitr::kable(aisle[1:10,])
+```
+There are 134 aisles. Aisle number 83 has the most item orders with 150609 observations, followed by aisle number 24 with 150473 observations. <br>
+<br> Making plots
+```{r}
+aisle %>% 
+  filter(n_obs > 10000) %>% 
+  ggplot(aes(x = aisle_id, y = n_obs)) +
+  geom_point()+
+  geom_line()
+```
+Make a table: best-selling
+```{r}
+table_1 = 
+  instacart %>% 
+  filter(aisle == c("baking ingredients","dog food care", "packaged vegetables fruits")) %>% 
+  group_by(product_name, aisle) %>% 
+  summarize(times = n()) %>% 
+  arrange(desc(times)) %>% 
+  group_by(aisle) %>% 
+  top_n(3) %>% 
+  select(aisle, everything())
+knitr::kable(table_1)
+```
+
+Make a table: mean hour
+```{r}
+table_2 = 
+  instacart %>% 
+  filter(product_name == c("Pink Lady Apples", "Coffee Ice Cream"))
+table_2
+```
+
+
+
+
