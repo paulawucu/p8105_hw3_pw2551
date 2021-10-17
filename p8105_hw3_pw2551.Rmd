@@ -13,12 +13,12 @@ Import the library:
 ```{r, message=FALSE}
 library(tidyverse)
 library(viridis)
+library(p8105.datasets)
 ```
 
 ### Problem 1
 Load in dataset
 ```{r}
-library(p8105.datasets)
 data("instacart")
 ```
 ```{r}
@@ -49,7 +49,9 @@ table_1 =
   arrange(desc(times)) %>% 
   group_by(aisle) %>% 
   top_n(3) %>% 
-  select(aisle, everything())
+  unite("products", c(product_name,times), sep = ": ") %>% # for better looking table
+  mutate(rank = c(1,2,3)) %>% 
+  pivot_wider(names_from = aisle, values_from = products)
 knitr::kable(table_1)
 ```
 
@@ -59,6 +61,42 @@ table_2 =
   instacart %>% 
   filter(product_name == c("Pink Lady Apples", "Coffee Ice Cream"))
 table_2
+```
+
+### Problem 2
+Load in data set
+```{r}
+library(p8105.datasets)
+data("brfss_smart2010")
+```
+Data Cleaning
+```{r}
+brfss = 
+  brfss_smart2010 %>% 
+  janitor::clean_names() %>% 
+  filter(topic == "Overall Health") %>% 
+  filter(response %in% c("Excellent", "Very good", "Good", "Fair", "Poor")) %>%
+  mutate(response = factor(response, levels = c("Excellent", "Very good", "Good", "Fair", "Poor"))) %>% 
+  arrange(desc(response))
+brfss
+```
+2002 vs 2010:
+```{r}
+brfss %>% 
+  filter(year %in% c(2002, 2010)) %>% 
+  arrange(year) %>% 
+  select(year, locationabbr, locationdesc) %>% 
+  group_by(year, locationabbr) %>% 
+  summarize(n_obs = n()) %>% 
+  filter(n_obs>=7)
+```
+
+Data set limited to `Excellent`:
+```{r}
+excellent = 
+  brfss %>% 
+  filter(response == "Excellent")
+excellent
 ```
 
 
