@@ -5,16 +5,26 @@ date: "10/14/2021"
 output: github_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 Import the library:
 ```{r, message=FALSE}
 library(tidyverse)
 library(viridis)
 library(p8105.datasets)
 library(lubridate)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+theme_set(theme_minimal() + theme(legend.position = "right"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 
 ### Problem 1
@@ -29,8 +39,7 @@ aisles =
   group_by(aisle_id, aisle) %>% 
   summarize(n_obs = n()) %>% 
   arrange(desc(n_obs))  # arrange in descending order
-#knitr::kable(aisles[1:5,])
-aisles
+knitr::kable(aisles[1:5,])
 ```
 There are `r nrow(aisles)` aisles. Aisle number 83 (fresh vegetables) has the most item orders with `r pull(aisles, n_obs)[1]` observations, followed by aisle number 24 (fresh fruits) with `r pull(aisles, n_obs)[2]` observations. <br>
 <br> Making plots
@@ -38,13 +47,17 @@ There are `r nrow(aisles)` aisles. Aisle number 83 (fresh vegetables) has the mo
 instacart %>% 
   count(aisle) %>% 
   filter(n > 10000) %>% 
-  mutate(aisle = fct_reorder(aisle, n)) %>% 
+  mutate(aisle = fct_reorder(aisle, n)) %>%   # reorder the number of items in an acending order
   ggplot(aes(x = aisle, y = n)) +
   geom_point()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust= 1))
+  ggtitle("Aisle and Number of Orderd from It") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust= 1),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(y = "# of items ordered", x = "Aisle Name")
 ```
+<br>This graph shows the number of items ordered in each aisle (number of items $>$ 1000 for all aisles here). I reordered the graph so that aisle with least number of items ordered is on the leftmost of the x-axis and aisle with most number of items ordered is on the right of the x-axis. "Butter" and "oils vinegars" aisles have relatively least orders; "fresh fruits" and "fresh vegetables" aisles have the most orders. <br>
 
-Make a table: best-selling
+<br>Make a table: best-selling
 ```{r}
 table_1 = 
   instacart %>% 
@@ -57,24 +70,28 @@ table_1 =
   unite("products", c(product_name,times), sep = ": ") %>% # for better looking table
   mutate(rank = c(1,2,3)) %>% 
   pivot_wider(names_from = aisle, values_from = products)
-#knitr::kable(table_1)
-table_1
+knitr::kable(table_1)
 ```
+* For “packaged vegetables fruits”, "Organic Baby Spinach" has the most orders (9784 orders), followed by "Organic Raspberries" (5546 orders), and by "Organic Blueberries" (4966 orders). 
+* For “baking ingredients”, "Light Brown Sugar" has the most orders (499 orders), followed by "Pure Baking Soda" (387 orders), and by "Cane Sugar" (336 orders)
+* For “dog food care”, "Snack Sticks Chicken & Rice Recipe Dog Treats" is the most popular one (30 orders), followed by "Organix Chicken & Brown Rice Recipe" (28 orders), and "Small Dog Biscuits" (26 orders)
+* It's not surprising that these 9 items are ordered most from each aisle: baby spinach, raspberries, and blueberries are common household food; light brown sugar, baking soda, and cane sugar are key ingredients in baking; and dog treats are usually of small packages, so they sell really fast.<br>
 
-
-Make a table: mean hour
+<br>Make a table: mean hour
 ```{r}
-table_2 = 
-  instacart %>% 
+instacart %>% 
   filter(product_name == "Pink Lady Apples" | product_name == "Coffee Ice Cream") %>% 
   select(c(order_dow, order_hour_of_day, product_name)) %>% 
   mutate(order_day = wday(order_dow+1, label = TRUE, abbr = FALSE)) %>% 
   group_by(order_day, product_name) %>% 
-  summarize(mean_hour = mean(order_hour_of_day)) %>%  # just the mean? 
-  spread(key = order_day, value = mean_hour)
-table_2
+  summarize(mean_hour = round(mean(order_hour_of_day),2)) %>%
+  spread(key = order_day, value = mean_hour) %>% 
+knitr::kable()
 ```
+In general, ice creams are bought in the later afternoon from Mon-Thur and in the early afternoon from Fri-Sun. On the other hand, Pink Lady Apples are bought in early afternoon during the whole week. Moreover, the mean hour of the day on each day of the week for both products is clustered between 11:00 - 16:00. This could be explained by the fact that people usually have lunch break and are free during this time period.<br>
 
+#### Dataset description:
+* This instacart data set has `r nrow(instacart)` rows and `r ncol(instacart)` columns. Among these `r ncol(instacart)` attributes, I think `days_since_prior_order` and `product_name` are important. `days_since_prior_order` indicates days between customers' shopping cycle and retainability of customers. It has a mean of `r mean(pull(instacart, days_since_prior_order), na.rm = TRUE)`, thus customers usually order again in 17 days. `product_name` is important because it gives us information of what are the products ordered most frequently. The most ordered item is `r arrange(count(instacart, pull(instacart, product_name)),desc(n))[1,1]` and it has been ordered `r arrange(count(instacart, pull(instacart, product_name)),desc(n))[1,2]` times during the period that the data is collected. 
 
 
 ### Problem 2
@@ -84,6 +101,7 @@ data("brfss_smart2010")
 ```
 Data Cleaning
 ```{r}
+# store the cleaned data to a new variable
 brfss = 
   brfss_smart2010 %>% 
   janitor::clean_names() %>% 
@@ -91,42 +109,58 @@ brfss =
   filter(response %in% c("Excellent", "Very good", "Good", "Fair", "Poor")) %>%
   mutate(response = factor(response, levels = c("Excellent", "Very good", "Good", "Fair", "Poor"))) %>% 
   arrange(desc(response))
-brfss
+knitr::kable(brfss[1:5,])
 ```
+
 2002 vs 2010:
 ```{r}
 brfss %>% 
   filter(year %in% c(2002,2010)) %>%
   select(c(year, locationabbr, locationdesc)) %>% 
-  distinct(year, locationabbr, locationdesc) %>% 
   group_by(year, locationabbr) %>% 
-  summarize(n_obs = n()) %>% 
-  filter(n_obs > 7) %>% 
-  arrange(n_obs)
+  summarize(distinct_counties = n_distinct(locationdesc)) %>% 
+  filter(distinct_counties >= 7) %>% 
+  arrange(year, distinct_counties) %>% 
+  knitr::kable()
 ```
+During 2002, CT, FL, NC, MA, NJ and PA were observed at 7 or more distinct locations. During 2010, the number of states that were observed at 7 or more locations increase to 14 states: CO, PA, SC, OH, MA, NY, NE, WA, CA, MD, NC, TX, NJ, FL.<br>
 
-Data set limited to `Excellent`:
+<br>Data set limited to `Excellent`:
 ```{r}
 excellent = 
   brfss %>% 
   filter(response == "Excellent") %>%
   group_by(locationabbr, year) %>% 
-  summarize(mean_data = mean(data_value, na.rm = TRUE)) %>% 
-  ggplot(aes(x = year, y = mean_data, group = locationabbr, color = locationabbr)) + 
-  geom_line(alpha = 0.6)
-excellent
+  summarize(mean_data = mean(data_value, na.rm = TRUE))
+knitr::kable(excellent[1:5,])
 ```
-Distribution of `data_value` for responses
+For each state (`locatioinabbr`), there's a variable `mean_data` that represents mean of `data_value` across locations every year.<br>
+<br>Make a spaghetti plot:
 ```{r}
-nys = 
-  brfss %>% 
+ggplot(excellent, aes(x = year, y = mean_data, group = locationabbr, color = locationabbr)) + 
+  geom_line(alpha = 0.6) +
+  ggtitle("Mean Data_value for Each State Acorss Years") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(y = "mean of data_value", x = "year", color = "State Abbreviation")
+```
+<br>There seems to be a trend from 2002 to 2010 across states that on average less people answer "Excellent" to the question asking about their overall health status. Also, the mean data_value seems to fluctuate from year to year in many states. <br>
+
+
+<br>Distribution of `data_value` for responses
+```{r}
+brfss %>% 
   filter(locationabbr=="NY" & year %in% c(2006, 2010)) %>% 
-  arrange(year)
-nys
-ggplot(nys, aes(x = response, y = data_value)) + 
+  arrange(year) %>% 
+  ggplot(aes(x = response, y = data_value)) + 
   geom_boxplot(width = 0.3) +
+  ggtitle("Boxplot of Desponse Distribution") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(y = "Data value", x = "Response type") +
   facet_grid(.~year)
 ```
+<br>
+ - In both graphs, we can see that people in NY who took the survey have similar distribution of responses: a large proportion of people think their overall health is "Very good" or "Good", followed by a relatively smaller proportion of people who think their overall health is "Excellent", then by "Fair" and "Poor". <br>
+ - The difference between 2006 and 2010 is that, in 2010, more people seems to rate their overall health status to be "Very good". Also, for the "Fair" response, we can see that there's a wider range of responses across the NY population, since the IQR of the "Fair" boxplot in 2010 is larger than that in 2006. <br>
 
 ### Problem 3
 Loading and tidying data
@@ -138,31 +172,43 @@ accel = read_csv("./data/accel_data.csv") %>%
          day = as.factor(day),
          type_of_days = ifelse(day %in% c('Sunday', 'Saturday'), 'weekend', 'weekday'),
          day = fct_relevel(day, "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
-accel
+knitr::kable(accel[1:5,])
 ```
+* I changed the data into a longer-format, with each row being the observation of one minute. And I also added one column named `type_of_days` to indicate whether it's weekday or weekends. The final dataset has the following dimension: `r nrow(accel)` observations (rows) and `r ncol(accel)` attributes (columns). 
+* Here are the names of the attributes in the final dataset: `r variable.names(accel)`. Attribute `minute` indicated the minute of the day, and has a range between 1 and 1440, while `values` are the activities during each minute. <br>
+* I later changed the type of variable `minute` to numeric, and variable `day` to factor.
 
-Traditional analyses
+<br>Traditional analyses
 ```{r}
 traditional = 
   accel %>% 
   group_by(day, week) %>% 
-  summarize(total_activity = sum(values)) %>% 
-  pivot_wider(names_from = day, values_from = total_activity)
-traditional
-```
+  summarize(total_activity = sum(values))
+
+# for display
 traditional %>% 
-  ggplot(aes(x = day_id, y = total_activity)) + 
-  geom_line()
+  pivot_wider(names_from = day, values_from = total_activity) %>% 
+  knitr::kable()
+```
+It would be more straightforward we put all the data into a graph
+```{r}
+traditional %>% 
+  ggplot(aes(x = day, y = total_activity, group = week, color = as.factor(week))) + 
+  geom_line() + 
+  ggtitle("Activity Trend over A Week") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(y = "Total activity", x = "Day of the Week", color = "Week Number")
+```
+<br> We can see from the graph above that Friday, Saturday in earlier weeks and Sunday have more total activities than the weekdays. Total activities during Tuesday, Wednesday and Thursday don't fluctuate from week to week. Total activities for the week-4 and week-5 Saturday are extremely small, while total activities for the week-3 Monday are considerably large. <br>
 
 
-Day across the week
+<br>Day across the week
 ```{r}
 accel %>% 
   ggplot(aes(x = minute, y = values, group = day_id, color = day))+
   geom_line(alpha = 0.3) + 
   geom_smooth(se = FALSE, aes(group = day))
 ```
-
-
+<br> After smoothing across day of the week, we can see that this person is least active during midnight and early morning (roughly between 12 a.m. and 6:30 a.m.), possibly due to sleeping. Two significant peaks appear on Sunday morning (around 11 a.m.) and Friday late night (around 9 p.m.). Other than that, the activities are similar during the middle of the day across different days of the week. 
 
 
