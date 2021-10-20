@@ -14,6 +14,7 @@ Import the library:
 library(tidyverse)
 library(viridis)
 library(p8105.datasets)
+library(lubridate)
 ```
 
 ### Problem 1
@@ -23,27 +24,31 @@ data("instacart")
 ```
 ```{r}
 # it would be easier to store this as a new variable
-aisle = 
+aisles = 
   instacart %>% 
-  group_by(aisle_id) %>% 
+  group_by(aisle_id, aisle) %>% 
   summarize(n_obs = n()) %>% 
   arrange(desc(n_obs))  # arrange in descending order
-knitr::kable(aisle[1:10,])
+#knitr::kable(aisles[1:5,])
+aisles
 ```
-There are 134 aisles. Aisle number 83 has the most item orders with 150609 observations, followed by aisle number 24 with 150473 observations. <br>
+There are `r nrow(aisles)` aisles. Aisle number 83 (fresh vegetables) has the most item orders with `r pull(aisles, n_obs)[1]` observations, followed by aisle number 24 (fresh fruits) with `r pull(aisles, n_obs)[2]` observations. <br>
 <br> Making plots
 ```{r}
-aisle %>% 
-  filter(n_obs > 10000) %>% 
-  ggplot(aes(x = aisle_id, y = n_obs)) +
+instacart %>% 
+  count(aisle) %>% 
+  filter(n > 10000) %>% 
+  mutate(aisle = fct_reorder(aisle, n)) %>% 
+  ggplot(aes(x = aisle, y = n)) +
   geom_point()+
-  geom_line()
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust= 1))
 ```
+
 Make a table: best-selling
 ```{r}
 table_1 = 
   instacart %>% 
-  filter(aisle == c("baking ingredients","dog food care", "packaged vegetables fruits")) %>% 
+  filter(aisle %in% c("baking ingredients","dog food care", "packaged vegetables fruits")) %>% 
   group_by(product_name, aisle) %>% 
   summarize(times = n()) %>% 
   arrange(desc(times)) %>% 
@@ -52,21 +57,29 @@ table_1 =
   unite("products", c(product_name,times), sep = ": ") %>% # for better looking table
   mutate(rank = c(1,2,3)) %>% 
   pivot_wider(names_from = aisle, values_from = products)
-knitr::kable(table_1)
+#knitr::kable(table_1)
+table_1
 ```
+
 
 Make a table: mean hour
 ```{r}
 table_2 = 
   instacart %>% 
-  filter(product_name == c("Pink Lady Apples", "Coffee Ice Cream"))
+  filter(product_name == "Pink Lady Apples" | product_name == "Coffee Ice Cream") %>% 
+  select(c(order_dow, order_hour_of_day, product_name)) %>% 
+  mutate(order_day = wday(order_dow+1, label = TRUE, abbr = FALSE)) %>% 
+  group_by(order_day, product_name) %>% 
+  summarize(mean_hour = mean(order_hour_of_day)) %>%  # just the mean? 
+  spread(key = order_day, value = mean_hour)
 table_2
 ```
+
+
 
 ### Problem 2
 Load in data set
 ```{r}
-library(p8105.datasets)
 data("brfss_smart2010")
 ```
 Data Cleaning
@@ -83,12 +96,13 @@ brfss
 2002 vs 2010:
 ```{r}
 brfss %>% 
-  filter(year %in% c(2002, 2010)) %>% 
-  arrange(year) %>% 
-  select(year, locationabbr, locationdesc) %>% 
+  filter(year %in% c(2002,2010)) %>%
+  select(c(year, locationabbr, locationdesc)) %>% 
+  distinct(year, locationabbr, locationdesc) %>% 
   group_by(year, locationabbr) %>% 
   summarize(n_obs = n()) %>% 
-  filter(n_obs>=7)
+  filter(n_obs > 7) %>% 
+  arrange(n_obs)
 ```
 
 Data set limited to `Excellent`:
@@ -98,8 +112,55 @@ excellent =
   filter(response == "Excellent") %>%
   group_by(locationabbr, year) %>% 
   summarize(mean_data = mean(data_value, na.rm = TRUE)) %>% 
-  select(year, locationabbr, mean_data)#, mean_data)
+  ggplot(aes(x = year, y = mean_data, group = locationabbr, color = locationabbr)) + 
+  geom_line(alpha = 0.6)
 excellent
+```
+Distribution of `data_value` for responses
+```{r}
+nys = 
+  brfss %>% 
+  filter(locationabbr=="NY" & year %in% c(2006, 2010)) %>% 
+  arrange(year)
+nys
+ggplot(nys, aes(x = response, y = data_value)) + 
+  geom_boxplot(width = 0.3) +
+  facet_grid(.~year)
+```
+
+### Problem 3
+Loading and tidying data
+```{r, message = FALSE, warning = FALSE}
+accel = read_csv("./data/accel_data.csv") %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(activity_1:activity_1440, names_to = "minute", names_prefix = "activity_",values_to = "values") %>% 
+  mutate(minute = as.numeric(minute),
+         day = as.factor(day),
+         type_of_days = ifelse(day %in% c('Sunday', 'Saturday'), 'weekend', 'weekday'),
+         day = fct_relevel(day, "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+accel
+```
+
+Traditional analyses
+```{r}
+traditional = 
+  accel %>% 
+  group_by(day, week) %>% 
+  summarize(total_activity = sum(values)) %>% 
+  pivot_wider(names_from = day, values_from = total_activity)
+traditional
+```
+traditional %>% 
+  ggplot(aes(x = day_id, y = total_activity)) + 
+  geom_line()
+
+
+Day across the week
+```{r}
+accel %>% 
+  ggplot(aes(x = minute, y = values, group = day_id, color = day))+
+  geom_line(alpha = 0.3) + 
+  geom_smooth(se = FALSE, aes(group = day))
 ```
 
 
